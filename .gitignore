@@ -1,0 +1,35 @@
+# Ambiente virtuale
+venv/
+.env/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Streamlit
+.streamlit/secrets.toml
+
+# VS Code
+.vscode/
+
+# File temporanei
+*.tmp
+*.log
+*.bak
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build / distribuzione
+build/
+dist/
+*.egg-info/
+
+# PDF e DOCX generati temporaneamente (opzionale)
+temp/
+tmp/
