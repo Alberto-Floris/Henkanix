@@ -7,7 +7,52 @@ from pdf2docx import Converter
 import shutil
 
 # ---------------------------------------------------
-# CONFIG PAGINA
+# LANGUAGE SYSTEM
+# ---------------------------------------------------
+LANG = {
+    "en": {
+        "title": "Upload a PDF or Word file and convert it in seconds.",
+        "subtitle": "No installation required, everything works directly in the browser.",
+        "upload": "Upload file 📄",
+        "docx_info": "Word → PDF conversion in progress...",
+        "pdf_info": "PDF → Word conversion in progress...",
+        "done": "Conversion completed!",
+        "download_pdf": "⬇️ Download PDF",
+        "download_docx": "⬇️ Download Word",
+        "error": "Error during conversion.",
+        "footer1": "Powered by Streamlit + LibreOffice + Python",
+        "footer2": "Created by Alberto Floris",
+        "title_main": "PDF ↔ Word",
+        "button_lang": "🌐 Italiano"
+    },
+    "it": {
+        "title": "Carica un file PDF o Word e convertilo in pochi secondi.",
+        "subtitle": "Nessuna installazione richiesta, tutto funziona direttamente dal browser.",
+        "upload": "Carica file 📄",
+        "docx_info": "Conversione Word → PDF in corso...",
+        "pdf_info": "Conversione PDF → Word in corso...",
+        "done": "Conversione completata!",
+        "download_pdf": "⬇️ Scarica PDF",
+        "download_docx": "⬇️ Scarica Word",
+        "error": "Errore durante la conversione.",
+        "footer1": "Powered by Streamlit + LibreOffice + Python",
+        "footer2": "Creato da Alberto Floris",
+        "title_main": "PDF ↔ Word",
+        "button_lang": "🌐 English"
+    }
+}
+
+# ---------------------------------------------------
+# SESSION LANGUAGE
+# ---------------------------------------------------
+if "lang" not in st.session_state:
+    st.session_state.lang = "en"
+
+def t(key):
+    return LANG[st.session_state.lang][key]
+
+# ---------------------------------------------------
+# PAGE CONFIG
 # ---------------------------------------------------
 st.set_page_config(
     page_title="Henkanix",
@@ -16,7 +61,19 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------
-# TITOLO PRINCIPALE
+# LANGUAGE BUTTON
+# ---------------------------------------------------
+with st.sidebar:
+    current_lang = st.session_state.lang
+
+    button_label = "🌐 Italiano" if current_lang == "en" else "🌐 English"
+
+    if st.button(button_label):
+        st.session_state.lang = "it" if current_lang == "en" else "en"
+        st.rerun()
+
+# ---------------------------------------------------
+# TITLE
 # ---------------------------------------------------
 st.markdown(
     """
@@ -28,14 +85,14 @@ st.markdown(
 )
 
 st.markdown(
-    """
-      <div style='text-align:center; font-size:20px;
+    f"""
+    <div style='text-align:center; font-size:20px;
                 color: var(--text-color);
                 margin-top:16px; line-height:1.8;
                 max-width:780px; margin-left:auto; margin-right:auto;
                 font-weight:500;'>
-        Carica un file <b>PDF o Word</b> e convertilo in pochi secondi.<br>
-        Nessuna installazione richiesta, tutto funziona direttamente dal browser.
+        {t("title")}<br>
+        {t("subtitle")}
     </div>
     """,
     unsafe_allow_html=True
@@ -63,10 +120,10 @@ h1 {text-align:center;}
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# LIBREOFFICE PATH (FUNZIONA OVUNQUE)
+# LIBREOFFICE PATH
 # ---------------------------------------------------
 def get_libreoffice_path():
-    if os.name == "nt":  # Windows
+    if os.name == "nt":
         possible_paths = [
             r"C:\Program Files\LibreOffice\program\soffice.exe",
             r"C:\Program Files (x86)\LibreOffice\program\soffice.exe"
@@ -74,23 +131,21 @@ def get_libreoffice_path():
         for p in possible_paths:
             if os.path.exists(p):
                 return p
-    else:  # Linux (Streamlit Cloud)
+    else:
         return shutil.which("soffice")
 
     return None
 
-
 libreoffice_path = get_libreoffice_path()
 
 if libreoffice_path is None:
-    st.error("LibreOffice non trovato nel sistema")
+    st.error("LibreOffice not found")
     st.stop()
 
 # ---------------------------------------------------
-# FUNZIONI
+# FUNCTIONS
 # ---------------------------------------------------
 def convert_docx_to_pdf(input_path, output_folder):
-
     cmd = [
         libreoffice_path,
         "--headless",
@@ -113,10 +168,10 @@ def convert_pdf_to_docx(input_path, output_path):
 # ---------------------------------------------------
 # HEADER
 # ---------------------------------------------------
-st.title("PDF ↔ Word")
+st.title(t("title_main"))
 
 uploaded = st.file_uploader(
-    "Carica file 📄",
+    t("upload"),
     type=["docx", "pdf"]
 )
 
@@ -138,12 +193,10 @@ if uploaded:
 
         try:
 
-            # -------------------------------------
             # DOCX -> PDF
-            # -------------------------------------
             if ext == ".docx":
 
-                st.info("Conversione Word → PDF in corso...")
+                st.info(t("docx_info"))
                 progress.progress(30)
 
                 convert_docx_to_pdf(input_path, tmpdir)
@@ -155,21 +208,19 @@ if uploaded:
 
                 with open(output_path, "rb") as f:
                     progress.progress(100)
-                    st.success("Conversione completata!")
+                    st.success(t("done"))
 
                     st.download_button(
-                        "⬇️ Scarica PDF",
+                        t("download_pdf"),
                         data=f,
                         file_name=output_name,
                         mime="application/pdf"
                     )
 
-            # -------------------------------------
             # PDF -> DOCX
-            # -------------------------------------
             elif ext == ".pdf":
 
-                st.info("Conversione PDF → Word in corso...")
+                st.info(t("pdf_info"))
                 progress.progress(30)
 
                 output_name = uploaded.name.replace(".pdf", ".docx")
@@ -180,17 +231,17 @@ if uploaded:
                 progress.progress(100)
 
                 with open(output_path, "rb") as f:
-                    st.success("Conversione completata!")
+                    st.success(t("done"))
 
                     st.download_button(
-                        "⬇️ Scarica Word",
+                        t("download_docx"),
                         data=f,
                         file_name=output_name,
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     )
 
         except Exception as e:
-            st.error("Errore durante la conversione.")
+            st.error(t("error"))
             st.code(str(e))
 
 # ---------------------------------------------------
@@ -198,9 +249,9 @@ if uploaded:
 # ---------------------------------------------------
 st.markdown("---")
 st.markdown(
-    """
-    <div class='small'>Powered by Streamlit + LibreOffice + Python</div>
-    <div class='small'>Created by Alberto Floris</div>
+    f"""
+    <div class='small'>{t("footer1")}</div>
+    <div class='small'>{t("footer2")}</div>
     """,
     unsafe_allow_html=True
 )
