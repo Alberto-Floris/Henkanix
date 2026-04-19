@@ -23,7 +23,12 @@ LANG = {
         "footer1": "Powered by Streamlit + LibreOffice + Python",
         "footer2": "Created by Alberto Floris",
         "title_main": "PDF ↔ Word",
-        "button_lang": "🌐 Italiano"
+        "button_lang": "🌐 Italiano",
+
+        # DONATION
+        "donation_title": "Henkanix grows thanks to small gestures like yours",
+        "donation_subtitle": "If you find it useful, you can support the project",
+        "donation_button": "💙 Support Henkanix"
     },
     "it": {
         "title": "Carica un file PDF o Word e convertilo in pochi secondi.",
@@ -38,7 +43,12 @@ LANG = {
         "footer1": "Powered by Streamlit + LibreOffice + Python",
         "footer2": "Creato da Alberto Floris",
         "title_main": "PDF ↔ Word",
-        "button_lang": "🌐 English"
+        "button_lang": "🌐 English",
+
+        # DONATION
+        "donation_title": "Henkanix cresce anche grazie a piccoli gesti come il tuo",
+        "donation_subtitle": "Se ti è utile, puoi supportare lo sviluppo del progetto",
+        "donation_button": "💙 Supporta Henkanix"
     }
 }
 
@@ -65,8 +75,7 @@ st.set_page_config(
 # ---------------------------------------------------
 with st.sidebar:
     current_lang = st.session_state.lang
-
-    button_label = "🌐 Italiano" if current_lang == "en" else "🌐 English"
+    button_label = t("button_lang")
 
     if st.button(button_label):
         st.session_state.lang = "it" if current_lang == "en" else "en"
@@ -87,7 +96,6 @@ st.markdown(
 st.markdown(
     f"""
     <div style='text-align:center; font-size:20px;
-                color: var(--text-color);
                 margin-top:16px; line-height:1.8;
                 max-width:780px; margin-left:auto; margin-right:auto;
                 font-weight:500;'>
@@ -106,7 +114,6 @@ st.markdown("---")
 st.markdown("""
 <style>
 .block-container {padding-top: 2rem;}
-h1 {text-align:center;}
 .stDownloadButton button, .stButton button{
     width:100%;
     border-radius:10px;
@@ -133,7 +140,6 @@ def get_libreoffice_path():
                 return p
     else:
         return shutil.which("soffice")
-
     return None
 
 libreoffice_path = get_libreoffice_path()
@@ -156,7 +162,6 @@ def convert_docx_to_pdf(input_path, output_folder):
         "--outdir", output_folder,
         input_path
     ]
-
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
@@ -243,6 +248,34 @@ if uploaded:
         except Exception as e:
             st.error(t("error"))
             st.code(str(e))
+
+# ---------------------------------------------------
+# DONATION SECTION (FIXED + TRANSLATED)
+# ---------------------------------------------------
+st.markdown("---")
+
+st.markdown(
+    f"""
+    <div style='text-align:center; margin-top:24px; margin-bottom:8px;'>
+        <div style='font-size:16px; font-weight:500;'>
+            {t("donation_title")}
+        </div>
+        <div style='font-size:13px; color:#888; margin-top:6px;'>
+            {t("donation_subtitle")}
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+col1, col2, col3 = st.columns([1, 1.2, 1])
+
+with col2:
+    st.link_button(
+        t("donation_button"),
+        "https://www.paypal.com/donate/?hosted_button_id=2YWFSJBJF5WP6",
+        use_container_width=True
+    )
 
 # ---------------------------------------------------
 # FOOTER
