@@ -1,16 +1,16 @@
-import streamlit as st
-import tempfile
-import os
-import subprocess
-from pathlib import Path
-from pdf2docx import Converter
-import shutil
+import streamlit as st  
+import tempfile  
+import os  
+import subprocess  
+from pathlib import Path 
+from pdf2docx import Converter  
+import shutil 
 
 # ---------------------------------------------------
 # LANGUAGE SYSTEM
 # ---------------------------------------------------
-LANG = {
-    "en": {
+LANG = {             
+    "en": {                                                                 
         "title": "Upload a PDF or Word file and convert it in seconds.",
         "subtitle": "No installation required, everything works directly in the browser.",
         "upload": "Upload file 📄",
@@ -55,12 +55,12 @@ LANG = {
 # ---------------------------------------------------
 # SESSION LANGUAGE
 # ---------------------------------------------------
-if "lang" not in st.session_state:
-    st.session_state.lang = "en"
+if "lang" not in st.session_state: 
+    st.session_state.lang = "en" 
 
-def t(key):
-    return LANG[st.session_state.lang][key]
-
+def t(key):   
+    return LANG[st.session_state.lang][key]  
+                                                 
 # ---------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------
@@ -73,13 +73,13 @@ st.set_page_config(
 # ---------------------------------------------------
 # LANGUAGE BUTTON
 # ---------------------------------------------------
-with st.sidebar:
-    current_lang = st.session_state.lang
-    button_label = t("button_lang")
-
-    if st.button(button_label):
-        st.session_state.lang = "it" if current_lang == "en" else "en"
-        st.rerun()
+with st.sidebar:   
+    current_lang = st.session_state.lang   
+    button_label = t("button_lang")  
+                                    
+    if st.button(button_label):  
+        st.session_state.lang = "it" if current_lang == "en" else "en" 
+        st.rerun()  
 
 # ---------------------------------------------------
 # TITLE
@@ -129,125 +129,123 @@ st.markdown("""
 # ---------------------------------------------------
 # LIBREOFFICE PATH
 # ---------------------------------------------------
-def get_libreoffice_path():
-    if os.name == "nt":
-        possible_paths = [
-            r"C:\Program Files\LibreOffice\program\soffice.exe",
-            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe"
+def get_libreoffice_path(): 
+    if os.name == "nt":     
+        possible_paths = [    
+            r"C:\Program Files\LibreOffice\program\soffice.exe",  
+            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe" 
         ]
-        for p in possible_paths:
-            if os.path.exists(p):
-                return p
-    else:
-        return shutil.which("soffice")
-    return None
+        for p in possible_paths:  
+            if os.path.exists(p):  
+                return p           
+    else:  
+        return shutil.which("soffice")  
+    return None    
 
-libreoffice_path = get_libreoffice_path()
+libreoffice_path = get_libreoffice_path()  
 
-if libreoffice_path is None:
-    st.error("LibreOffice not found")
-    st.stop()
+if libreoffice_path is None: 
+    st.error("LibreOffice not found")  
+    st.stop()  
 
 # ---------------------------------------------------
 # FUNCTIONS
 # ---------------------------------------------------
-def convert_docx_to_pdf(input_path, output_folder):
-    cmd = [
-        libreoffice_path,
-        "--headless",
-        "--nologo",
-        "--norestore",
-        "--nofirststartwizard",
-        "--convert-to", "pdf",
-        "--outdir", output_folder,
-        input_path
+def convert_docx_to_pdf(input_path, output_folder): 
+    cmd = [                  
+        libreoffice_path,    
+        "--headless",       
+        "--nologo",          
+        "--norestore",       
+        "--nofirststartwizard",  
+        "--convert-to", "pdf",  
+        "--outdir", output_folder,  
+        input_path   
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-
-def convert_pdf_to_docx(input_path, output_path):
-    cv = Converter(input_path)
-    cv.convert(output_path, start=0, end=None)
-    cv.close()
+    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
+    
+def convert_pdf_to_docx(input_path, output_path):  
+    cv = Converter(input_path) 
+    cv.convert(output_path, start=0, end=None)  
+    cv.close()  
 
 # ---------------------------------------------------
 # HEADER
 # ---------------------------------------------------
-st.title(t("title_main"))
+st.title(t("title_main"))     
 
 uploaded = st.file_uploader(
-    t("upload"),
-    type=["docx", "pdf"]
+    t("upload"),  
+    type=["docx", "pdf"]   
 )
 
 # ---------------------------------------------------
 # MAIN
 # ---------------------------------------------------
-if uploaded:
+if uploaded:   
 
-    ext = Path(uploaded.name).suffix.lower()
+    ext = Path(uploaded.name).suffix.lower()  
+    with tempfile.TemporaryDirectory() as tmpdir:   
 
-    with tempfile.TemporaryDirectory() as tmpdir:
 
-        input_path = os.path.join(tmpdir, uploaded.name)
+        input_path = os.path.join(tmpdir, uploaded.name) 
 
-        with open(input_path, "wb") as f:
-            f.write(uploaded.read())
+        with open(input_path, "wb") as f: 
+            f.write(uploaded.read()) 
+            
+        progress = st.progress(0) 
 
-        progress = st.progress(0)
-
-        try:
+        try:  
 
             # DOCX -> PDF
-            if ext == ".docx":
+            if ext == ".docx":  
+                st.info(t("docx_info")) 
+                progress.progress(30)  
 
-                st.info(t("docx_info"))
-                progress.progress(30)
-
-                convert_docx_to_pdf(input_path, tmpdir)
+                convert_docx_to_pdf(input_path, tmpdir) 
 
                 progress.progress(80)
 
-                output_name = uploaded.name.replace(".docx", ".pdf")
-                output_path = os.path.join(tmpdir, output_name)
+                output_name = uploaded.name.replace(".docx", ".pdf") 
+                output_path = os.path.join(tmpdir, output_name) 
 
-                with open(output_path, "rb") as f:
-                    progress.progress(100)
-                    st.success(t("done"))
+                with open(output_path, "rb") as f:  
+                    progress.progress(100)   
+                    st.success(t("done"))  
 
-                    st.download_button(
-                        t("download_pdf"),
-                        data=f,
-                        file_name=output_name,
-                        mime="application/pdf"
+                    st.download_button(  
+                        t("download_pdf"),  
+                        data=f,  
+                        file_name=output_name,  
+                        mime="application/pdf"  
                     )
 
             # PDF -> DOCX
-            elif ext == ".pdf":
+            elif ext == ".pdf":  
 
-                st.info(t("pdf_info"))
+                st.info(t("pdf_info"))  
                 progress.progress(30)
 
-                output_name = uploaded.name.replace(".pdf", ".docx")
-                output_path = os.path.join(tmpdir, output_name)
+                output_name = uploaded.name.replace(".pdf", ".docx")  
+                output_path = os.path.join(tmpdir, output_name) 
 
-                convert_pdf_to_docx(input_path, output_path)
+                convert_pdf_to_docx(input_path, output_path) 
 
                 progress.progress(100)
 
-                with open(output_path, "rb") as f:
-                    st.success(t("done"))
+                with open(output_path, "rb") as f: 
+                    st.success(t("done"))   
 
-                    st.download_button(
-                        t("download_docx"),
-                        data=f,
-                        file_name=output_name,
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    st.download_button(  
+                        t("download_docx"),  
+                        data=f,  
+                        file_name=output_name,  
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
                     )
 
-        except Exception as e:
-            st.error(t("error"))
-            st.code(str(e))
+        except Exception as e:  
+            st.error(t("error"))  
+            st.code(str(e)) 
 
 # ---------------------------------------------------
 # DONATION SECTION (FIXED + TRANSLATED)
