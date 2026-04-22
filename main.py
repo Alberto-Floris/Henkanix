@@ -6,6 +6,7 @@ from pathlib import Path
 from pdf2docx import Converter  
 import shutil 
 from PIL import Image
+from PyPDF2 import PdfMerger   # <--- NEW
 
 # ---------------------------------------------------
 # LANGUAGE SYSTEM
@@ -32,6 +33,12 @@ LANG = {
         "img_info": "Image → PDF conversion in progress...",
         "download_img_pdf": "⬇️ Download PDF",
 
+        # MERGE PDF
+        "merge_title": "Merge multiple PDFs",
+        "merge_upload": "Upload two or more PDF files 📚",
+        "merge_info": "Merging PDF files...",
+        "download_merged_pdf": "⬇️ Download merged PDF",
+
         # DONATION
         "donation_title": "Henkanix grows thanks to small gestures like yours",
         "donation_subtitle": "If you find it useful, you can support the project",
@@ -57,6 +64,12 @@ LANG = {
         "img_upload": "Carica una o più immagini 🖼️",
         "img_info": "Conversione Immagini → PDF in corso...",
         "download_img_pdf": "⬇️ Scarica PDF",
+
+        # MERGE PDF
+        "merge_title": "Unisci più PDF",
+        "merge_upload": "Carica due o più PDF 📚",
+        "merge_info": "Unione dei PDF in corso...",
+        "download_merged_pdf": "⬇️ Scarica PDF unito",
 
         # DONATION
         "donation_title": "Henkanix cresce anche grazie a piccoli gesti come il tuo",
@@ -185,7 +198,7 @@ def convert_pdf_to_docx(input_path, output_path):
 # ---------------------------------------------------
 # TABS
 # ---------------------------------------------------
-tab1, tab2 = st.tabs([t("title_main"), t("img_title")])
+tab1, tab2, tab3 = st.tabs([t("title_main"), t("img_title"), t("merge_title")])
 
 # ---------------------------------------------------
 # TAB 1 — PDF ↔ Word
@@ -311,6 +324,55 @@ with tab2:
         except Exception as e:
             st.error(t("error"))
             st.code(str(e))
+
+# ---------------------------------------------------
+# TAB 3 — MERGE PDF
+# ---------------------------------------------------
+with tab3:
+
+    st.title(t("merge_title"))
+
+    uploaded_pdfs = st.file_uploader(
+        t("merge_upload"),
+        type=["pdf"],
+        accept_multiple_files=True
+    )
+
+    if uploaded_pdfs and len(uploaded_pdfs) >= 2:
+        progress = st.progress(0)
+        st.info(t("merge_info"))
+
+        try:
+            merger = PdfMerger()
+
+            for pdf in uploaded_pdfs:
+                merger.append(pdf)
+
+            progress.progress(60)
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                merged_path = tmp.name
+                merger.write(merged_path)
+                merger.close()
+
+            progress.progress(100)
+            st.success(t("done"))
+
+            with open(merged_path, "rb") as f:
+                st.download_button(
+                    t("download_merged_pdf"),
+                    data=f,
+                    file_name="merged.pdf",
+                    mime="application/pdf"
+                )
+
+        except Exception as e:
+            st.error(t("error"))
+            st.code(str(e))
+
+    elif uploaded_pdfs:
+        st.warning("Please upload at least two PDF files." if st.session_state.lang == "en"
+                   else "Carica almeno due file PDF.")
 
 # ---------------------------------------------------
 # DONATION SECTION
