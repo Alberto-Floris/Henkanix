@@ -5,13 +5,14 @@ import subprocess
 from pathlib import Path 
 from pdf2docx import Converter  
 import shutil 
+from PIL import Image
 
 # ---------------------------------------------------
 # LANGUAGE SYSTEM
 # ---------------------------------------------------
 LANG = {             
     "en": {                                                                 
-        "title": "Upload a PDF or Word file and convert it in seconds.",
+        "title": "Upload PDF, Word documents or images and convert them in seconds.",
         "subtitle": "No installation required, everything works directly in the browser.",
         "upload": "Upload file 📄",
         "docx_info": "Word → PDF conversion in progress...",
@@ -25,13 +26,19 @@ LANG = {
         "title_main": "PDF ↔ Word",
         "button_lang": "🌐 Italiano",
 
+        # IMAGE → PDF
+        "img_title": "Convert images to PDF",
+        "img_upload": "Upload one or more images 🖼️",
+        "img_info": "Image → PDF conversion in progress...",
+        "download_img_pdf": "⬇️ Download PDF",
+
         # DONATION
         "donation_title": "Henkanix grows thanks to small gestures like yours",
         "donation_subtitle": "If you find it useful, you can support the project",
         "donation_button": "💙 Support Henkanix"
     },
     "it": {
-        "title": "Carica un file PDF o Word e convertilo in pochi secondi.",
+        "title": "Carica PDF, documenti Word o immagini e convertili in pochi secondi.",
         "subtitle": "Nessuna installazione richiesta, tutto funziona direttamente dal browser.",
         "upload": "Carica file 📄",
         "docx_info": "Conversione Word → PDF in corso...",
@@ -44,6 +51,12 @@ LANG = {
         "footer2": "Creato da Alberto Floris",
         "title_main": "PDF ↔ Word",
         "button_lang": "🌐 English",
+
+        # IMAGE → PDF
+        "img_title": "Converti immagini in PDF",
+        "img_upload": "Carica una o più immagini 🖼️",
+        "img_info": "Conversione Immagini → PDF in corso...",
+        "download_img_pdf": "⬇️ Scarica PDF",
 
         # DONATION
         "donation_title": "Henkanix cresce anche grazie a piccoli gesti come il tuo",
@@ -170,85 +183,137 @@ def convert_pdf_to_docx(input_path, output_path):
     cv.close()  
 
 # ---------------------------------------------------
-# HEADER
+# TABS
 # ---------------------------------------------------
-st.title(t("title_main"))     
-
-uploaded = st.file_uploader(
-    t("upload"),  
-    type=["docx", "pdf"]   
-)
+tab1, tab2 = st.tabs([t("title_main"), t("img_title")])
 
 # ---------------------------------------------------
-# MAIN
+# TAB 1 — PDF ↔ Word
 # ---------------------------------------------------
-if uploaded:   
+with tab1:
 
-    ext = Path(uploaded.name).suffix.lower()  
-    with tempfile.TemporaryDirectory() as tmpdir:   
+    st.title(t("title_main"))
 
+    uploaded = st.file_uploader(
+        t("upload"),  
+        type=["docx", "pdf"]   
+    )
 
-        input_path = os.path.join(tmpdir, uploaded.name) 
+    if uploaded:   
 
-        with open(input_path, "wb") as f: 
-            f.write(uploaded.read()) 
-            
-        progress = st.progress(0) 
+        ext = Path(uploaded.name).suffix.lower()  
+        with tempfile.TemporaryDirectory() as tmpdir:   
 
-        try:  
+            input_path = os.path.join(tmpdir, uploaded.name) 
 
-            # DOCX -> PDF
-            if ext == ".docx":  
-                st.info(t("docx_info")) 
-                progress.progress(30)  
+            with open(input_path, "wb") as f: 
+                f.write(uploaded.read()) 
+                
+            progress = st.progress(0) 
 
-                convert_docx_to_pdf(input_path, tmpdir) 
+            try:  
 
-                progress.progress(80)
+                # DOCX -> PDF
+                if ext == ".docx":  
+                    st.info(t("docx_info")) 
+                    progress.progress(30)  
 
-                output_name = uploaded.name.replace(".docx", ".pdf") 
-                output_path = os.path.join(tmpdir, output_name) 
+                    convert_docx_to_pdf(input_path, tmpdir) 
 
-                with open(output_path, "rb") as f:  
-                    progress.progress(100)   
-                    st.success(t("done"))  
+                    progress.progress(80)
 
-                    st.download_button(  
-                        t("download_pdf"),  
-                        data=f,  
-                        file_name=output_name,  
-                        mime="application/pdf"  
-                    )
+                    output_name = uploaded.name.replace(".docx", ".pdf") 
+                    output_path = os.path.join(tmpdir, output_name) 
 
-            # PDF -> DOCX
-            elif ext == ".pdf":  
+                    with open(output_path, "rb") as f:  
+                        progress.progress(100)   
+                        st.success(t("done"))  
 
-                st.info(t("pdf_info"))  
-                progress.progress(30)
+                        st.download_button(  
+                            t("download_pdf"),  
+                            data=f,  
+                            file_name=output_name,  
+                            mime="application/pdf"  
+                        )
 
-                output_name = uploaded.name.replace(".pdf", ".docx")  
-                output_path = os.path.join(tmpdir, output_name) 
+                # PDF -> DOCX
+                elif ext == ".pdf":  
 
-                convert_pdf_to_docx(input_path, output_path) 
+                    st.info(t("pdf_info"))  
+                    progress.progress(30)
 
-                progress.progress(100)
+                    output_name = uploaded.name.replace(".pdf", ".docx")  
+                    output_path = os.path.join(tmpdir, output_name) 
 
-                with open(output_path, "rb") as f: 
-                    st.success(t("done"))   
+                    convert_pdf_to_docx(input_path, output_path) 
 
-                    st.download_button(  
-                        t("download_docx"),  
-                        data=f,  
-                        file_name=output_name,  
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
-                    )
+                    progress.progress(100)
 
-        except Exception as e:  
-            st.error(t("error"))  
-            st.code(str(e)) 
+                    with open(output_path, "rb") as f: 
+                        st.success(t("done"))   
+
+                        st.download_button(  
+                            t("download_docx"),  
+                            data=f,  
+                            file_name=output_name,  
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
+                        )
+
+            except Exception as e:  
+                st.error(t("error"))  
+                st.code(str(e)) 
 
 # ---------------------------------------------------
-# DONATION SECTION (FIXED + TRANSLATED)
+# TAB 2 — IMAGE → PDF
+# ---------------------------------------------------
+with tab2:
+
+    st.title(t("img_title"))
+
+    uploaded_images = st.file_uploader(
+        t("img_upload"),
+        type=["png", "jpg", "jpeg", "webp"],
+        accept_multiple_files=True
+    )
+
+    if uploaded_images:
+        progress = st.progress(0)
+        st.info(t("img_info"))
+
+        try:
+            images = []
+            for img_file in uploaded_images:
+                img = Image.open(img_file).convert("RGB")
+                images.append(img)
+
+            progress.progress(60)
+
+            # Creazione PDF temporaneo
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                pdf_path = tmp.name
+
+            if len(images) == 1:
+                images[0].save(pdf_path, save_all=True)
+            else:
+                images[0].save(pdf_path, save_all=True, append_images=images[1:])
+
+            progress.progress(100)
+            st.success(t("done"))
+
+            with open(pdf_path, "rb") as f:
+                st.download_button(
+                    t("download_img_pdf"),
+                    data=f,
+                    file_name="images.pdf",
+                    mime="application/pdf"
+                )
+
+        except Exception as e:
+            st.error(t("error"))
+            st.code(str(e))
+
+# ---------------------------------------------------
+# DONATION SECTION
 # ---------------------------------------------------
 st.markdown("---")
 
