@@ -6,7 +6,7 @@ from pathlib import Path
 from pdf2docx import Converter  
 import shutil 
 from PIL import Image
-from PyPDF2 import PdfMerger   # <--- NEW
+from PyPDF2 import PdfMerger   
 
 # ---------------------------------------------------
 # LANGUAGE SYSTEM
