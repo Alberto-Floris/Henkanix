@@ -13,7 +13,7 @@ from PyPDF2 import PdfMerger
 # ---------------------------------------------------
 LANG = {             
     "en": {                                                                 
-        "title": "Upload PDF, Word documents or images and convert them in seconds.",
+        "title": "Convert, merge and transform PDFs, Word files and images in seconds.",
         "subtitle": "No installation required, everything works directly in the browser.",
         "upload": "Upload file 📄",
         "docx_info": "Word → PDF conversion in progress...",
@@ -45,7 +45,7 @@ LANG = {
         "donation_button": "💙 Support Henkanix"
     },
     "it": {
-        "title": "Carica PDF, documenti Word o immagini e convertili in pochi secondi.",
+        "title": "Converti, unisci e trasforma PDF, Word e immagini in pochi secondi.",
         "subtitle": "Nessuna installazione richiesta, tutto funziona direttamente dal browser.",
         "upload": "Carica file 📄",
         "docx_info": "Conversione Word → PDF in corso...",
