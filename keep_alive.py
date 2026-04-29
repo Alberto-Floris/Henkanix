@@ -1,31 +1,22 @@
 import os
-from playwright.sync_api import sync_playwright
-
+import requests
 
 def run():
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page()
+    url = os.getenv("APP_URL", "https://henkanix.streamlit.app/")
+    
+    try:
+        print(f"Ping a {url}")
+        response = requests.get(url, timeout=60)
 
-        url = os.getenv("APP_URL", "https://henkanix.streamlit.app/")
-        print(f"Visito: {url}")
-        page.goto(url, timeout=60_000)
+        print("Status code:", response.status_code)
 
-        button_selector = 'button:has-text("Yes, get this app back up!")'
+        if response.status_code == 200:
+            print("App attiva o risvegliata con successo!")
+        else:
+            print("Risposta ricevuta, ma status diverso da 200")
 
-        try:
-            page.wait_for_selector(button_selector, timeout=15_000)
-            page.click(button_selector)
-            page.wait_for_load_state("networkidle", timeout=60_000)
-            print("App era in sleep → risvegliata con successo!")
-        except Exception as e:
-            if "Timeout" in type(e).__name__:
-                print("App già attiva, nessuna azione necessaria.")
-            else:
-                raise
-
-        browser.close()
-
+    except Exception as e:
+        print("Errore:", e)
 
 if __name__ == "__main__":
     run()
