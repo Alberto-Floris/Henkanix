@@ -2,7 +2,7 @@ name: Keep App Alive
 
 on:
   schedule:
-    - cron: '0 8,20 * * *'
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:
@@ -16,8 +16,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      - run: pip install requests
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          playwright install chromium
 
-      - run: python keep_alive.py
+      - name: Run keep alive
+        run: python keep_alive.py
         env:
           APP_URL: https://henkanix.streamlit.app/

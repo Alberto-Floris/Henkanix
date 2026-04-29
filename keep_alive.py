@@ -1,22 +1,42 @@
 import os
-import requests
+from playwright.sync_api import sync_playwright, TimeoutError
+
 
 def run():
     url = os.getenv("APP_URL", "https://henkanix.streamlit.app/")
-    
-    try:
-        print(f"Ping a {url}")
-        response = requests.get(url, timeout=60)
 
-        print("Status code:", response.status_code)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox"]
+        )
 
-        if response.status_code == 200:
-            print("App attiva o risvegliata con successo!")
-        else:
-            print("Risposta ricevuta, ma status diverso da 200")
+        page = browser.new_page()
 
-    except Exception as e:
-        print("Errore:", e)
+        try:
+            print(f"Opening: {url}")
+            page.goto(url, timeout=60000, wait_until="domcontentloaded")
+
+            wake_button = 'button:has-text("Yes, get this app back up!")'
+
+            try:
+                page.wait_for_selector(wake_button, timeout=8000)
+                print("App asleep → waking up...")
+                page.click(wake_button)
+
+                page.wait_for_load_state("networkidle", timeout=60000)
+                print("App successfully awakened!")
+
+            except TimeoutError:
+                print("App already active.")
+
+        except Exception as e:
+            print("Error:", e)
+            raise
+
+        finally:
+            browser.close()
+
 
 if __name__ == "__main__":
     run()
