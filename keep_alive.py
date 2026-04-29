@@ -24,9 +24,9 @@ def run():
                 print("App asleep → waking up...")
                 page.click(wake_button)
 
-                page.wait_for_load_state("networkidle", timeout=60000)
-                print("App successfully awakened!")
-
+                page.wait_for_timeout(8000)
+                print("Wake-up completed (assumed success)")
+                
             except TimeoutError:
                 print("App already active.")
 
