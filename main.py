@@ -1,18 +1,21 @@
-import streamlit as st  
-import tempfile  
-import os  
-import subprocess  
-from pathlib import Path 
-from pdf2docx import Converter  
-import shutil 
+import streamlit as st
+import tempfile
+import os
+import subprocess
+import zipfile
+import io
+from pathlib import Path
+from pdf2docx import Converter
+import shutil
 from PIL import Image
-from PyPDF2 import PdfMerger   
+from PyPDF2 import PdfMerger
+import fitz  # PyMuPDF - per PDF -> Immagini
 
 # ---------------------------------------------------
 # LANGUAGE SYSTEM
 # ---------------------------------------------------
-LANG = {             
-    "en": {                                                                 
+LANG = {
+    "en": {
         "title": "Convert, merge and transform PDFs, Word files and images in seconds.",
         "subtitle": "No installation required, everything works directly in the browser.",
         "upload": "Upload file 📄",
@@ -27,11 +30,20 @@ LANG = {
         "title_main": "PDF ↔ Word",
         "button_lang": "🌐 Italiano",
 
-        # IMAGE → PDF
-        "img_title": "Convert images to PDF",
+        # IMAGE <-> PDF
+        "img_title": "Images ↔ PDF",
+        "direction_label": "Choose conversion direction",
+        "direction_img_to_pdf": "Image(s) → PDF",
+        "direction_pdf_to_img": "PDF → Image(s)",
         "img_upload": "Upload one or more images 🖼️",
         "img_info": "Image → PDF conversion in progress...",
         "download_img_pdf": "⬇️ Download PDF",
+        "pdf_to_img_upload": "Upload a PDF file 📄",
+        "pdf_to_img_info": "PDF → Image conversion in progress...",
+        "pdf_to_img_format": "Output format",
+        "pdf_to_img_dpi": "Quality (DPI)",
+        "download_single_image": "⬇️ Download image",
+        "download_zip_images": "⬇️ Download images (ZIP)",
 
         # MERGE PDF
         "merge_title": "Merge multiple PDFs",
@@ -59,11 +71,20 @@ LANG = {
         "title_main": "PDF ↔ Word",
         "button_lang": "🌐 English",
 
-        # IMAGE → PDF
-        "img_title": "Converti immagini in PDF",
+        # IMAGE <-> PDF
+        "img_title": "Immagini ↔ PDF",
+        "direction_label": "Scegli la direzione della conversione",
+        "direction_img_to_pdf": "Immagine/i → PDF",
+        "direction_pdf_to_img": "PDF → Immagine/i",
         "img_upload": "Carica una o più immagini 🖼️",
         "img_info": "Conversione Immagini → PDF in corso...",
         "download_img_pdf": "⬇️ Scarica PDF",
+        "pdf_to_img_upload": "Carica un file PDF 📄",
+        "pdf_to_img_info": "Conversione PDF → Immagini in corso...",
+        "pdf_to_img_format": "Formato di output",
+        "pdf_to_img_dpi": "Qualità (DPI)",
+        "download_single_image": "⬇️ Scarica immagine",
+        "download_zip_images": "⬇️ Scarica immagini (ZIP)",
 
         # MERGE PDF
         "merge_title": "Unisci più PDF",
@@ -81,12 +102,12 @@ LANG = {
 # ---------------------------------------------------
 # SESSION LANGUAGE
 # ---------------------------------------------------
-if "lang" not in st.session_state: 
-    st.session_state.lang = "en" 
+if "lang" not in st.session_state:
+    st.session_state.lang = "en"
 
-def t(key):   
-    return LANG[st.session_state.lang][key]  
-                                                 
+def t(key):
+    return LANG[st.session_state.lang][key]
+
 # ---------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------
@@ -99,13 +120,13 @@ st.set_page_config(
 # ---------------------------------------------------
 # LANGUAGE BUTTON
 # ---------------------------------------------------
-with st.sidebar:   
-    current_lang = st.session_state.lang   
-    button_label = t("button_lang")  
-                                    
-    if st.button(button_label):  
-        st.session_state.lang = "it" if current_lang == "en" else "en" 
-        st.rerun()  
+with st.sidebar:
+    current_lang = st.session_state.lang
+    button_label = t("button_lang")
+
+    if st.button(button_label):
+        st.session_state.lang = "it" if current_lang == "en" else "en"
+        st.rerun()
 
 # ---------------------------------------------------
 # TITLE
@@ -155,45 +176,67 @@ st.markdown("""
 # ---------------------------------------------------
 # LIBREOFFICE PATH
 # ---------------------------------------------------
-def get_libreoffice_path(): 
-    if os.name == "nt":     
-        possible_paths = [    
-            r"C:\Program Files\LibreOffice\program\soffice.exe",  
-            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe" 
+def get_libreoffice_path():
+    if os.name == "nt":
+        possible_paths = [
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe"
         ]
-        for p in possible_paths:  
-            if os.path.exists(p):  
-                return p           
-    else:  
-        return shutil.which("soffice")  
-    return None    
+        for p in possible_paths:
+            if os.path.exists(p):
+                return p
+    else:
+        return shutil.which("soffice")
+    return None
 
-libreoffice_path = get_libreoffice_path()  
+libreoffice_path = get_libreoffice_path()
 
-if libreoffice_path is None: 
-    st.error("LibreOffice not found")  
-    st.stop()  
+if libreoffice_path is None:
+    st.error("LibreOffice not found")
+    st.stop()
 
 # ---------------------------------------------------
 # FUNCTIONS
 # ---------------------------------------------------
-def convert_docx_to_pdf(input_path, output_folder): 
-    cmd = [                  
-        libreoffice_path,    
-        "--headless",       
-        "--nologo",          
-        "--norestore",       
-        "--nofirststartwizard",  
-        "--convert-to", "pdf",  
-        "--outdir", output_folder,  
-        input_path   
+def convert_docx_to_pdf(input_path, output_folder):
+    cmd = [
+        libreoffice_path,
+        "--headless",
+        "--nologo",
+        "--norestore",
+        "--nofirststartwizard",
+        "--convert-to", "pdf",
+        "--outdir", output_folder,
+        input_path
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
-    
-def convert_pdf_to_docx(input_path, output_path):  
-    cv = Converter(input_path) 
-    cv.convert(output_path, start=0, end=None)  
-    cv.close()  
+    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+def convert_pdf_to_docx(input_path, output_path):
+    cv = Converter(input_path)
+    cv.convert(output_path, start=0, end=None)
+    cv.close()
+
+def convert_pdf_to_images(pdf_bytes, dpi=200, img_format="PNG"):
+    """
+    Renderizza ogni pagina di un PDF in un'immagine.
+    Ritorna una lista di tuple (nome_file, bytes_immagine).
+    """
+    images = []
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+    zoom = dpi / 72  # 72 DPI è la risoluzione base di PDF/fitz
+    matrix = fitz.Matrix(zoom, zoom)
+
+    ext = img_format.lower()
+    for page_index in range(len(doc)):
+        page = doc.load_page(page_index)
+        pix = page.get_pixmap(matrix=matrix)
+        img_bytes = pix.tobytes(ext if ext != "jpg" else "jpeg")
+        filename = f"page_{page_index + 1}.{ext}"
+        images.append((filename, img_bytes))
+
+    doc.close()
+    return images
 
 # ---------------------------------------------------
 # TABS
@@ -208,122 +251,193 @@ with tab1:
     st.title(t("title_main"))
 
     uploaded = st.file_uploader(
-        t("upload"),  
-        type=["docx", "pdf"]   
+        t("upload"),
+        type=["docx", "pdf"]
     )
 
-    if uploaded:   
+    if uploaded:
 
-        ext = Path(uploaded.name).suffix.lower()  
-        with tempfile.TemporaryDirectory() as tmpdir:   
+        ext = Path(uploaded.name).suffix.lower()
+        with tempfile.TemporaryDirectory() as tmpdir:
 
-            input_path = os.path.join(tmpdir, uploaded.name) 
+            input_path = os.path.join(tmpdir, uploaded.name)
 
-            with open(input_path, "wb") as f: 
-                f.write(uploaded.read()) 
-                
-            progress = st.progress(0) 
+            with open(input_path, "wb") as f:
+                f.write(uploaded.read())
 
-            try:  
+            progress = st.progress(0)
+
+            try:
 
                 # DOCX -> PDF
-                if ext == ".docx":  
-                    st.info(t("docx_info")) 
-                    progress.progress(30)  
+                if ext == ".docx":
+                    st.info(t("docx_info"))
+                    progress.progress(30)
 
-                    convert_docx_to_pdf(input_path, tmpdir) 
+                    convert_docx_to_pdf(input_path, tmpdir)
 
                     progress.progress(80)
 
-                    output_name = uploaded.name.replace(".docx", ".pdf") 
-                    output_path = os.path.join(tmpdir, output_name) 
+                    output_name = uploaded.name.replace(".docx", ".pdf")
+                    output_path = os.path.join(tmpdir, output_name)
 
-                    with open(output_path, "rb") as f:  
-                        progress.progress(100)   
-                        st.success(t("done"))  
+                    with open(output_path, "rb") as f:
+                        progress.progress(100)
+                        st.success(t("done"))
 
-                        st.download_button(  
-                            t("download_pdf"),  
-                            data=f,  
-                            file_name=output_name,  
-                            mime="application/pdf"  
+                        st.download_button(
+                            t("download_pdf"),
+                            data=f,
+                            file_name=output_name,
+                            mime="application/pdf"
                         )
 
                 # PDF -> DOCX
-                elif ext == ".pdf":  
+                elif ext == ".pdf":
 
-                    st.info(t("pdf_info"))  
+                    st.info(t("pdf_info"))
                     progress.progress(30)
 
-                    output_name = uploaded.name.replace(".pdf", ".docx")  
-                    output_path = os.path.join(tmpdir, output_name) 
+                    output_name = uploaded.name.replace(".pdf", ".docx")
+                    output_path = os.path.join(tmpdir, output_name)
 
-                    convert_pdf_to_docx(input_path, output_path) 
+                    convert_pdf_to_docx(input_path, output_path)
 
                     progress.progress(100)
 
-                    with open(output_path, "rb") as f: 
-                        st.success(t("done"))   
+                    with open(output_path, "rb") as f:
+                        st.success(t("done"))
 
-                        st.download_button(  
-                            t("download_docx"),  
-                            data=f,  
-                            file_name=output_name,  
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
+                        st.download_button(
+                            t("download_docx"),
+                            data=f,
+                            file_name=output_name,
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                         )
 
-            except Exception as e:  
-                st.error(t("error"))  
-                st.code(str(e)) 
+            except Exception as e:
+                st.error(t("error"))
+                st.code(str(e))
 
 # ---------------------------------------------------
-# TAB 2 — IMAGE → PDF
+# TAB 2 — IMAGES ↔ PDF
 # ---------------------------------------------------
 with tab2:
 
     st.title(t("img_title"))
 
-    uploaded_images = st.file_uploader(
-        t("img_upload"),
-        type=["png", "jpg", "jpeg", "webp"],
-        accept_multiple_files=True
+    direction = st.radio(
+        t("direction_label"),
+        [t("direction_img_to_pdf"), t("direction_pdf_to_img")],
+        horizontal=True
     )
 
-    if uploaded_images:
-        progress = st.progress(0)
-        st.info(t("img_info"))
+    # -------------------------------------------
+    # Immagine/i -> PDF
+    # -------------------------------------------
+    if direction == t("direction_img_to_pdf"):
 
-        try:
-            images = []
-            for img_file in uploaded_images:
-                img = Image.open(img_file).convert("RGB")
-                images.append(img)
+        uploaded_images = st.file_uploader(
+            t("img_upload"),
+            type=["png", "jpg", "jpeg", "webp"],
+            accept_multiple_files=True
+        )
 
-            progress.progress(60)
+        if uploaded_images:
+            progress = st.progress(0)
+            st.info(t("img_info"))
 
-            # Creazione PDF temporaneo
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                pdf_path = tmp.name
+            try:
+                images = []
+                for img_file in uploaded_images:
+                    img = Image.open(img_file).convert("RGB")
+                    images.append(img)
 
-            if len(images) == 1:
-                images[0].save(pdf_path, save_all=True)
-            else:
-                images[0].save(pdf_path, save_all=True, append_images=images[1:])
+                progress.progress(60)
 
-            progress.progress(100)
-            st.success(t("done"))
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    pdf_path = tmp.name
 
-            with open(pdf_path, "rb") as f:
-                st.download_button(
-                    t("download_img_pdf"),
-                    data=f,
-                    file_name="images.pdf",
-                    mime="application/pdf"
-                )
+                if len(images) == 1:
+                    images[0].save(pdf_path, save_all=True)
+                else:
+                    images[0].save(pdf_path, save_all=True, append_images=images[1:])
 
-        except Exception as e:
-            st.error(t("error"))
-            st.code(str(e))
+                progress.progress(100)
+                st.success(t("done"))
+
+                with open(pdf_path, "rb") as f:
+                    st.download_button(
+                        t("download_img_pdf"),
+                        data=f,
+                        file_name="images.pdf",
+                        mime="application/pdf"
+                    )
+
+            except Exception as e:
+                st.error(t("error"))
+                st.code(str(e))
+
+    # -------------------------------------------
+    # PDF -> Immagine/i
+    # -------------------------------------------
+    else:
+
+        uploaded_pdf = st.file_uploader(
+            t("pdf_to_img_upload"),
+            type=["pdf"]
+        )
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            img_format = st.selectbox(t("pdf_to_img_format"), ["PNG", "JPG"])
+        with col_b:
+            dpi = st.slider(t("pdf_to_img_dpi"), min_value=72, max_value=300, value=200, step=1)
+
+        if uploaded_pdf:
+            progress = st.progress(0)
+            st.info(t("pdf_to_img_info"))
+
+            try:
+                pdf_bytes = uploaded_pdf.read()
+                progress.progress(30)
+
+                images = convert_pdf_to_images(pdf_bytes, dpi=dpi, img_format=img_format)
+                progress.progress(80)
+
+                if len(images) == 1:
+                    filename, img_bytes = images[0]
+                    mime = "image/png" if img_format == "PNG" else "image/jpeg"
+
+                    progress.progress(100)
+                    st.success(t("done"))
+
+                    st.download_button(
+                        t("download_single_image"),
+                        data=img_bytes,
+                        file_name=filename,
+                        mime=mime
+                    )
+                else:
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                        for filename, img_bytes in images:
+                            zf.writestr(filename, img_bytes)
+                    zip_buffer.seek(0)
+
+                    progress.progress(100)
+                    st.success(t("done"))
+
+                    st.download_button(
+                        t("download_zip_images"),
+                        data=zip_buffer,
+                        file_name="images.zip",
+                        mime="application/zip"
+                    )
+
+            except Exception as e:
+                st.error(t("error"))
+                st.code(str(e))
 
 # ---------------------------------------------------
 # TAB 3 — MERGE PDF
