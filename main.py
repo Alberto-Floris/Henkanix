@@ -4,12 +4,14 @@ import os
 import subprocess
 import zipfile
 import io
+import numpy as np
 from pathlib import Path
 from pdf2docx import Converter
 import shutil
 from PIL import Image
 from PyPDF2 import PdfMerger
-import fitz  # PyMuPDF - per PDF -> Immagini
+import fitz  # PyMuPDF - per PDF -> Immagini e Firma PDF
+from streamlit_drawable_canvas import st_canvas
 
 # ---------------------------------------------------
 # LANGUAGE SYSTEM
@@ -51,6 +53,25 @@ LANG = {
         "merge_info": "Merging PDF files...",
         "download_merged_pdf": "⬇️ Download merged PDF",
 
+        # SIGN PDF
+        "sign_title": "Sign PDF",
+        "sign_source_label": "How do you want to add your signature?",
+        "sign_draw": "Draw signature",
+        "sign_upload": "Upload signature image",
+        "sign_draw_instructions": "Draw your signature below with your mouse or finger.",
+        "sign_upload_label": "Upload a signature image (ideally transparent PNG) 🖊️",
+        "sign_pdf_upload": "Upload the PDF to sign 📄",
+        "sign_page_number": "Page to sign",
+        "sign_pos_x": "Horizontal position (%)",
+        "sign_pos_y": "Vertical position (%)",
+        "sign_width": "Signature width (% of page)",
+        "sign_preview_caption": "Preview",
+        "sign_download": "⬇️ Download signed PDF",
+        "sign_missing_signature": "Draw or upload a signature first.",
+        "sign_disclaimer": "This is a visual signature (an image stamped onto the page), not a legally certified digital signature.",
+        "sign_make_transparent": "Remove white background from signature",
+        "sign_transparency_sensitivity": "Background sensitivity",
+
         # DONATION
         "donation_title": "Henkanix grows thanks to small gestures like yours",
         "donation_subtitle": "If you find it useful, you can support the project",
@@ -91,6 +112,25 @@ LANG = {
         "merge_upload": "Carica due o più PDF 📚",
         "merge_info": "Unione dei PDF in corso...",
         "download_merged_pdf": "⬇️ Scarica PDF unito",
+
+        # FIRMA PDF
+        "sign_title": "Firma PDF",
+        "sign_source_label": "Come vuoi aggiungere la tua firma?",
+        "sign_draw": "Disegna la firma",
+        "sign_upload": "Carica immagine firma",
+        "sign_draw_instructions": "Disegna la tua firma qui sotto con mouse o dito.",
+        "sign_upload_label": "Carica un'immagine della firma (idealmente PNG trasparente) 🖊️",
+        "sign_pdf_upload": "Carica il PDF da firmare 📄",
+        "sign_page_number": "Pagina da firmare",
+        "sign_pos_x": "Posizione orizzontale (%)",
+        "sign_pos_y": "Posizione verticale (%)",
+        "sign_width": "Larghezza firma (% della pagina)",
+        "sign_preview_caption": "Anteprima",
+        "sign_download": "⬇️ Scarica PDF firmato",
+        "sign_missing_signature": "Disegna o carica prima una firma.",
+        "sign_disclaimer": "Questa è una firma visiva (un'immagine sovrapposta alla pagina), non una firma digitale con valore legale certificato.",
+        "sign_make_transparent": "Rendi trasparente lo sfondo della firma",
+        "sign_transparency_sensitivity": "Sensibilità sfondo",
 
         # DONATION
         "donation_title": "Henkanix cresce anche grazie a piccoli gesti come il tuo",
@@ -238,10 +278,30 @@ def convert_pdf_to_images(pdf_bytes, dpi=200, img_format="PNG"):
     doc.close()
     return images
 
+def make_signature_transparent(img: Image.Image, sensitivity: int = 200) -> Image.Image:
+    """
+    Rende trasparente lo sfondo chiaro di un'immagine di firma (es. foto su carta bianca).
+    sensitivity: soglia di luminosità (0-255). Pixel più chiari della soglia diventano
+    progressivamente trasparenti; pixel scuri (l'inchiostro) restano opachi.
+    """
+    img = img.convert("RGBA")
+    data = np.array(img).astype(np.float32)
+
+    r, g, b = data[:, :, 0], data[:, :, 1], data[:, :, 2]
+    luminance = 0.299 * r + 0.587 * g + 0.114 * b
+
+    alpha = np.clip((sensitivity - luminance) * (255.0 / max(sensitivity, 1)), 0, 255)
+
+    out = data.astype(np.uint8).copy()
+    out[:, :, 3] = alpha.astype(np.uint8)
+    return Image.fromarray(out, "RGBA")
+
 # ---------------------------------------------------
 # TABS
 # ---------------------------------------------------
-tab1, tab2, tab3 = st.tabs([t("title_main"), t("img_title"), t("merge_title")])
+tab1, tab2, tab3, tab4 = st.tabs([
+    t("title_main"), t("img_title"), t("merge_title"), t("sign_title")
+])
 
 # ---------------------------------------------------
 # TAB 1 — PDF ↔ Word
@@ -487,6 +547,113 @@ with tab3:
     elif uploaded_pdfs:
         st.warning("Please upload at least two PDF files." if st.session_state.lang == "en"
                    else "Carica almeno due file PDF.")
+
+# ---------------------------------------------------
+# TAB 4 — FIRMA PDF
+# ---------------------------------------------------
+with tab4:
+
+    st.title(t("sign_title"))
+    st.caption(t("sign_disclaimer"))
+
+    sign_source = st.radio(
+        t("sign_source_label"),
+        [t("sign_draw"), t("sign_upload")],
+        horizontal=True
+    )
+
+    signature_img = None
+
+    # --- Opzione A: disegna la firma ---
+    if sign_source == t("sign_draw"):
+        st.caption(t("sign_draw_instructions"))
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 255, 255, 0)",
+            stroke_width=3,
+            stroke_color="#000000",
+            background_color="rgba(255, 255, 255, 0)",
+            height=150,
+            width=450,
+            drawing_mode="freedraw",
+            key="signature_canvas",
+            return_image_data=True,
+        )
+        if canvas_result.image_data is not None and canvas_result.image_data[:, :, 3].sum() > 0:
+            signature_img = Image.fromarray(canvas_result.image_data.astype("uint8"), "RGBA")
+
+    # --- Opzione B: carica immagine firma ---
+    else:
+        sig_file = st.file_uploader(t("sign_upload_label"), type=["png", "jpg", "jpeg"])
+        if sig_file:
+            raw_img = Image.open(io.BytesIO(sig_file.getvalue())).convert("RGBA")
+
+            remove_bg = st.checkbox(t("sign_make_transparent"), value=True)
+
+            if remove_bg:
+                sensitivity = st.slider(t("sign_transparency_sensitivity"), 100, 250, 200)
+                signature_img = make_signature_transparent(raw_img, sensitivity=sensitivity)
+                st.image(signature_img, caption=t("sign_preview_caption"), width=300)
+            else:
+                signature_img = raw_img
+
+    st.markdown("---")
+    pdf_to_sign = st.file_uploader(t("sign_pdf_upload"), type=["pdf"])
+
+    if pdf_to_sign and not signature_img:
+        st.info(t("sign_missing_signature"))
+
+    if pdf_to_sign and signature_img:
+        try:
+            pdf_bytes = pdf_to_sign.getvalue()
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            n_pages = len(doc)
+
+            page_number = st.number_input(
+                t("sign_page_number"), min_value=1, max_value=n_pages, value=n_pages
+            )
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                pos_x = st.slider(t("sign_pos_x"), 0, 100, 65)
+            with col2:
+                pos_y = st.slider(t("sign_pos_y"), 0, 100, 85)
+            with col3:
+                width_pct = st.slider(t("sign_width"), 5, 60, 25)
+
+            page = doc.load_page(page_number - 1)
+            page_rect = page.rect
+
+            sig_w_pt = page_rect.width * (width_pct / 100)
+            aspect = signature_img.height / signature_img.width
+            sig_h_pt = sig_w_pt * aspect
+
+            x0 = min(page_rect.width * (pos_x / 100), page_rect.width - sig_w_pt)
+            y0 = min(page_rect.height * (pos_y / 100), page_rect.height - sig_h_pt)
+            rect = fitz.Rect(x0, y0, x0 + sig_w_pt, y0 + sig_h_pt)
+
+            sig_buffer = io.BytesIO()
+            signature_img.save(sig_buffer, format="PNG")
+            page.insert_image(rect, stream=sig_buffer.getvalue())
+
+            # Anteprima della pagina firmata
+            pix = page.get_pixmap(matrix=fitz.Matrix(1.3, 1.3))
+            st.image(pix.tobytes("png"), caption=t("sign_preview_caption"), use_container_width=True)
+
+            out_buffer = io.BytesIO()
+            doc.save(out_buffer)
+            doc.close()
+            out_buffer.seek(0)
+
+            st.download_button(
+                t("sign_download"),
+                data=out_buffer,
+                file_name="signed_" + pdf_to_sign.name,
+                mime="application/pdf"
+            )
+
+        except Exception as e:
+            st.error(t("error"))
+            st.code(str(e))
 
 # ---------------------------------------------------
 # DONATION SECTION
